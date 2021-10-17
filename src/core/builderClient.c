@@ -8,14 +8,14 @@ extern void exitProgramClient(int signal) {
 }
 
 extern const void getMessage(int socket) {
-    char *message = (char*)memoryAllocation(100);
-
+    char *message = (char*)memoryAllocation(200);
     for(;;) {
-        long int received;
-        if((received = recv(socket, message, 100, 0)) > 0) {
+        int receive = recv(socket, message, 200, 0);
+        if (receive > 0) {
             printf("\r%s\n", message);
             printWithFormat();
-        } else if(received == 0) break;
+        } else if (receive == 0)
+            break;
     }
     free(message);
 }
@@ -24,20 +24,17 @@ extern const void sendMessage(int socket) {
     char *message = (char*)memoryAllocation(100);
     for(;;) {
         printWithFormat();
-        while(fgets(message, 100, stdin) != NULL) {
+        while (fgets(message, 100, stdin) != NULL) {
             stringFormat(message, 100);
-            if(!strlen(message)) {
+            if (strlen(message) == 0)
                 printWithFormat();
-                continue;
-            }
-            break;
+            else
+                break;
         }
-
         send(socket, message, 100, 0);
-        
-        if(!strcmp(message, "exit")) break;
+        if (strcmp(message, "exit") == 0)
+            break;
     }
-    free(message);
     exitProgramClient(2);
 }
 
@@ -65,7 +62,7 @@ extern const void builderClient(char *destination, char* flag, int port) {
     int serverLength = sizeof(serverInfo), clientLength = sizeof(clientInfo);
     memset(&serverInfo, 0, serverLength);
     memset(&clientInfo, 0, clientLength);
-    serverInfo.sin_family = PF_INET;
+    serverInfo.sin_family = AF_INET;
     serverInfo.sin_addr.s_addr = inet_addr(destination);
     serverInfo.sin_port = htons(port);
 
@@ -83,20 +80,16 @@ extern const void builderClient(char *destination, char* flag, int port) {
     send(client, name, 100, 0);
 
     pthread_t sendMsg;
-    if (pthread_create(&sendMsg, NULL, (void *) sendMessage, NULL) != 0) {
-        printf ("Create pthread error!\n");
-        exit(EXIT_FAILURE);
-    }
+    if (pthread_create(&sendMsg, NULL, (void *) sendMessage, NULL) != 0)
+        error("Error creating thread to send messages.");
 
     pthread_t getMsg;
-    if (pthread_create(&getMsg, NULL, (void *) getMessage, NULL) != 0) {
-        printf ("Create pthread error!\n");
-        exit(EXIT_FAILURE);
-    }
+    if (pthread_create(&getMsg, NULL, (void *) getMessage, NULL) != 0)
+        error("Error creating thread to get messages.");
 
-    while (1) {
+    for(;;) {
         if(flagExit) {
-            printf("\nBye\n");
+            printf("\nGoodBye\n");
             break;
         }
     }

@@ -5,24 +5,25 @@ ClientNode *root, *current;
 
 extern const void exitProgramServer(int signal) {
     ClientNode *node;
-    while(root != NULL) {
-        printf("\nClose socket: %i\n", root->socket);
+    while (root != NULL) {
+        printf("\nClosing socket: %i\n", root->socket);
+        
+        // Close all socket include server
         close(root->socket);
         node = root;
         root = root->next;
         free(node);
     }
-    error("\n\"GoodBye\"\n");
+    error("\"GoodBye\"");
 }
 
 extern const void sendMessageAllClients(ClientNode* client, char* buffer) {
     ClientNode *node = root->next;
-
-    while(node != NULL) {
-        // All clients except the one in the current session.
-        if(client->socket != node->socket) {
-            printf("Send to socket: %i: \"%s\"\n", node->socket, buffer);
-            send(node->socket, buffer, 100, 0);
+    while (node != NULL) {
+        // All clients except itself.
+        if (client->socket != node->socket) {
+            printf("Send to socket %i: \"%s\" \n", node->socket, buffer);
+            send(node->socket, buffer, 250, 0);
         }
         node = node->next;
     }
@@ -30,44 +31,52 @@ extern const void sendMessageAllClients(ClientNode* client, char* buffer) {
 }
 
 extern const void handlerClient(void *client) {
-    char *name = (char*)memoryAllocation(50), *getBuffer = (char*)memoryAllocation(100), *sendBuffer = (char*)memoryAllocation(100);
     int flag = 0;
-    ClientNode *node = (ClientNode*)client;
+    char *name = (char*)memoryAllocation(50);
+    char *getBuffer = (char*)memoryAllocation(100);
+    char *sendBuffer = (char*)memoryAllocation(200);
+    ClientNode *node = (ClientNode *)client;
 
-    // We initialize the client to the server.
-    if(recv(node->socket, name, 100, 0) <= 0) {
-       printf("Failed to start the client \"%s\" inside the server.", node->ip);
-       flag++; 
+    // Naming
+    if (recv(node->socket, name, 50, 0) <= 0 || strlen(name) < 2 || strlen(name) >= 50) {
+        printf("%s didn't input name.\n", node->ip);
+        flag = 1;
     } else {
-        strncpy(node->name, name, 100);
-        printf("%s <%s><%i> join to chat.\n", node->name, node->ip, node->socket);
-        sprintf(sendBuffer, "%s <%s> join to chat.\n", node->name, node->ip);
+        strncpy(node->name, name, 50);
+        printf("%s(%s)(%d) join the chatroom.\n", node->name, node->ip, node->socket);
+        sprintf(sendBuffer, "%s(%s) join the chatroom.", node->name, node->ip);
         sendMessageAllClients(node, sendBuffer);
     }
 
+    // Conversation
     for(;;) {
-        if(flag) break;
+        if (flag) break;
 
         int receive = recv(node->socket, getBuffer, 100, 0);
-        if(receive > 0) {
-            if(!strlen(getBuffer)) continue;
-            sprintf(sendBuffer, "%s: %s from: %s", node->name, getBuffer, node->ip);
-        } else if(receive == 0 || !strcmp(getBuffer, "exit")) {
-            printf("%s{%s}{%d} leave the chatroom.\n", node->name, node->ip, node->socket);
-            sprintf(sendBuffer, "%s{%s} leave the chat.", node->name, node->ip);
-            flag = 1;
-        } else flag = 1;
+        
+        if (receive > 0) {
+            if (strlen(getBuffer) == 0) continue;
 
+            sprintf(sendBuffer, "%s：%s from %s", node->name, getBuffer, node->ip);
+        } else if (receive == 0 || strcmp(getBuffer, "exit") == 0) {
+            printf("%s(%s)(%d) leave the chatroom.\n", node->name, node->ip, node->socket);
+            sprintf(sendBuffer, "%s(%s) leave the chatroom.", node->name, node->ip);
+            flag = 1;
+        } else {
+            printf("Fatal Error: -1\n");
+            flag = 1;
+        }
         sendMessageAllClients(node, sendBuffer);
     }
 
+    // Remove Node
     close(node->socket);
-    if(node != current) {
-        node->previuos->next = node->next;
-        node->next->previuos = node->previuos;
-    } else {
+    if (node == current) { // remove an edge node
         current = node->previuos;
         current->next = NULL;
+    } else { // remove a middle node
+        node->previuos->next = node->next;
+        node->next->previuos = node->previuos;
     }
     free(node);
 
@@ -80,17 +89,15 @@ extern const void builderServer(char* flag, int port) {
 
     // Create socket
     int server = socket(AF_INET , SOCK_STREAM , 0), client = 0;
-    if (server == -1) {
-        printf("Fail to create a socket.");
-        exit(EXIT_FAILURE);
-    }
+    if (server == -1)
+        error("Fail to create a socket.");
 
    // Socket information
     struct sockaddr_in serverInfo, clientInfo;
     int serverLength = sizeof(serverInfo), clientLength = sizeof(clientInfo);
     memset(&serverInfo, 0, serverLength);
     memset(&clientInfo, 0, clientLength);
-    serverInfo.sin_family = PF_INET;
+    serverInfo.sin_family = AF_INET;
     serverInfo.sin_addr.s_addr = htonl(0xC0A80006);
     serverInfo.sin_port = htons(port);
 
@@ -121,6 +128,6 @@ extern const void builderServer(char* flag, int port) {
 
         pthread_t id;
         if (pthread_create(&id, NULL, (void *)handlerClient, (void *)node) != 0)
-            error("Create pthread error!\n");
+            error("Failed to create thread to get clients.");
     }
 }

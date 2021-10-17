@@ -3,6 +3,7 @@
         "builder.h": "c",
         "libs.h": "c",
         "server.h": "c",
-        "client.h": "c"
+        "client.h": "c",
+        "typeinfo": "c"
     }
 }

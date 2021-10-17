@@ -13,7 +13,7 @@ extern const void validateParams(int argc) {
 extern const void *memoryAllocation(int quantity) {
     void *pointer;
 
-    if((pointer = (void*)malloc(quantity > 0 ? (quantity * sizeof(void)) : (sizeof(void)))) == NULL)
+    if((pointer = (void*)malloc(quantity * sizeof(void))) == NULL)
         error("Failed to allocate memory inside the pointer");
 
     return pointer;
@@ -44,15 +44,15 @@ extern const void stringFormat(char *message, int length) {
 }
 
 extern ClientNode *newClient(int socket, char* ip) {
-    ClientNode *client = (ClientNode*)memoryAllocation(0);
+    ClientNode *client = (ClientNode*)malloc(sizeof(ClientNode));
     client->socket = socket;
     client->previuos = client->next = NULL;
     
     client->ip = (char*)memoryAllocation(16);
-    client->ip = strdup(ip);
+    strncpy(client->ip, ip, 16);
 
-    client->name = (char*)memoryAllocation(16);
-    client->name = strdup("NONE");
+    client->name = (char*)memoryAllocation(5);
+    strncpy(client->name, "DEFAULT", 8);
 
     return client;
 }
