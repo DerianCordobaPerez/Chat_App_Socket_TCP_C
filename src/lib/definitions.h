@@ -48,15 +48,6 @@ extern const void stringFormat(char *, int);
 /**
  * 
  * 
- * @param char* source
- * @param int start
- * @param int length
-*/
-extern char *substring(const char*, int, int);
-
-/**
- * 
- * 
  * @param char* command
  * @param void
 */

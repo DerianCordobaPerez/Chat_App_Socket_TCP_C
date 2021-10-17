@@ -33,12 +33,6 @@ extern const void stringFormat(char *message, int length) {
     }
 }
 
-extern char *substring(const char *source, int start, int length) {
-    char *destination = (char*)memoryAllocation(50);
-    strncpy(destination, (source + start), length);
-    return destination;
-}
-
 extern const void executeCommand(char *command) {
     
     

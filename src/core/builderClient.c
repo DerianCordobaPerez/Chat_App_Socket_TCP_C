@@ -3,10 +3,21 @@
 #define LENGTH 1024
 
 volatile sig_atomic_t flag = 0;
-volatile bool flagFile = false;
-FILE *conversationFile;
+FILE *conversationFile = NULL;
 int server = 0;
 char *nameFile, name[50];
+
+void setNameFile() {
+	nameFile = (char*)memoryAllocation(50);
+	strcpy(nameFile, "Conversation-");
+	strcat(nameFile, name);
+	strcat(nameFile, ".txt");
+}
+
+void saveFile(char *message) {
+	if(conversationFile != NULL)
+		fprintf(conversationFile, "%s\n", message);
+}
 
 extern const void exitProgram(int signal) {
     flag = 1;
@@ -23,24 +34,32 @@ extern const void sendMessage() {
 
 		if (strcmp(message, "exit") == 0) break;
 		else {
-			if(message[0] == '\\') {
-				char *command = substring(message, 1, strlen(message) - 1);
-				// printf("%s\n", command);
-				if(strcmp(command, "quit") == 0) {
-					free(command);
+			if(*message == '\\') {
+				fflush(stdin);
+				fflush(stdout);
+				printf("\nStarting command: %s\n", message);
+				
+				if(strcmp(message, "\\quit") == 0) {
 					break;
-				} else if(strcmp(command, "log") == 0) flagFile = true;
-				else if(strcmp(command, "nolog") == 0) flagFile = false;
+				} else if(strcmp(message, "\\log") == 0) {
+					if(conversationFile == NULL)
+						conversationFile = fopen(nameFile, "a+");
+					else
+						printf("Saving of the conversation has still started.");
+
+				} else if(strcmp(message, "\\nolog") == 0) {
+					if(conversationFile != NULL) {
+						fclose(conversationFile);
+						printf("\nConversation saved.\n");
+					} else
+						printf("\nSaving of the conversation has not started yet.");
+				}
 			} else {
 				// We save the conversation inside the file
-				if(flagFile){
-					conversationFile = fopen(nameFile, "a+");
-					fprintf(conversationFile, "%s: %s", name, message);
-					fclose(conversationFile);
-				}
+				saveFile(message);
 
 				// We send the messages to the corresponding clients.
-				sprintf(buffer, "%s: %s \n", name, message);
+				sprintf(buffer, "%s\n", message);
 				send(server, buffer, strlen(buffer), 0);
 			}
 		}
@@ -58,6 +77,9 @@ extern const void getMessage() {
 		if (receive > 0) {
 			printf("%s", message);
 			printWithFormat();
+
+			// We save the conversation inside the file
+			saveFile(message);
 		}
 		else if (receive == 0) break;
 
@@ -83,6 +105,8 @@ extern const void builderClient(char *destination, int port) {
 	serverAddr.sin_addr.s_addr = inet_addr(destination);
 	serverAddr.sin_port = htons(port);
 
+	setNameFile();
+
 	// Connect to Server
 	int err;
 	if ((err = connect(server, (struct sockaddr *)&serverAddr, sizeof(serverAddr))) == -1)
@@ -91,11 +115,7 @@ extern const void builderClient(char *destination, int port) {
 	// Send name
 	send(server, name, 50, 0);
 
-	printf("* CHATROOM BY DERIAN *\n");
-
-	nameFile = (char*)memoryAllocation(50);
-	strcpy(nameFile, "Conversation-");
-	strcat(nameFile, name);
+	printf("*--CHATROOM BY DERIAN--*\n");
 
 	pthread_t sendMsg;
 	if (pthread_create(&sendMsg, NULL, (void *)sendMessage, NULL) != 0)
@@ -107,10 +127,13 @@ extern const void builderClient(char *destination, int port) {
 
 	for(;;) {
 		if (flag) {
-			printf("\nBye\n");
+			printf("\n\"GoodBye\"\n");
 			break;
 		}
 	}
+
+	if(conversationFile != NULL) 
+		fclose(conversationFile);
 
 	close(server);
 	free(nameFile);
