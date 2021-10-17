@@ -1,19 +1,9 @@
 // Client structure which we will use as a doubly linked list.
-typedef struct Client {
-    int socket;
-    struct Client *previuos, *next;
-    char *ip, *name;
-} ClientNode;
-
-/**
- * Create a new client with the corresponding socket and ip.
- * 
- * @param int socket Socket used.
- * @param char* ip Ip assign.
- * @return ClientNode New client node created.
- * 
-*/
-extern ClientNode *newClient(int, char*);
+typedef struct {
+    struct sockaddr_in address;
+	char name[50];
+	int sockfd, id;
+} Client;
 
 /**
  * Send a separate error message terminate program execution.
@@ -37,15 +27,7 @@ extern const void validateParams(int);
  * @param int quantity Amount of memory to allocate.
  * @return void* Returns an array.
 */
-extern const void* memoryAllocation(int);
-
-/**
- * Get the ip from the socket passed as a parameter.
- * 
- * @param char* Adapter from which we will obtain the ip.
- * @return char* Returns the ip obtained from the socket.
-*/
-extern const char* getIp(char *);
+extern void* memoryAllocation(int);
 
 /**
  * The console prints the desired format for the client when a message is sent.
@@ -62,3 +44,20 @@ extern const void printWithFormat();
  * @return void
 */
 extern const void stringFormat(char *, int);
+
+/**
+ * 
+ * 
+ * @param char* source
+ * @param int start
+ * @param int length
+*/
+extern char *substring(const char*, int, int);
+
+/**
+ * 
+ * 
+ * @param char* command
+ * @param void
+*/
+extern const void executeCommand(char*);

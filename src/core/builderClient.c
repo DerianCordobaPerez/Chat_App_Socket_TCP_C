@@ -1,98 +1,118 @@
 #include "../lib/builder.h"
 #include "../lib/client.h"
+#define LENGTH 1024
 
-volatile static int flagExit = 0;
+volatile sig_atomic_t flag = 0;
+volatile bool flagFile = false;
+FILE *conversationFile;
+int server = 0;
+char *nameFile, name[50];
 
-extern void exitProgramClient(int signal) {
-    flagExit = 1;
+extern const void exitProgram(int signal) {
+    flag = 1;
 }
 
-extern const void getMessage(int socket) {
-    char *message = (char*)memoryAllocation(200);
-    for(;;) {
-        int receive = recv(socket, message, 200, 0);
-        if (receive > 0) {
-            printf("\r%s\n", message);
-            printWithFormat();
-        } else if (receive == 0)
-            break;
-    }
-    free(message);
+extern const void sendMessage() {
+    char message[LENGTH] = {};
+	char buffer[LENGTH + 32] = {};
+
+	for(;;) {
+		printWithFormat();
+		fgets(message, LENGTH, stdin);
+		stringFormat(message, LENGTH);
+
+		if (strcmp(message, "exit") == 0) break;
+		else {
+			if(message[0] == '\\') {
+				char *command = substring(message, 1, strlen(message) - 1);
+				// printf("%s\n", command);
+				if(strcmp(command, "quit") == 0) {
+					free(command);
+					break;
+				} else if(strcmp(command, "log") == 0) flagFile = true;
+				else if(strcmp(command, "nolog") == 0) flagFile = false;
+			} else {
+				// We save the conversation inside the file
+				if(flagFile){
+					conversationFile = fopen(nameFile, "a+");
+					fprintf(conversationFile, "%s: %s", name, message);
+					fclose(conversationFile);
+				}
+
+				// We send the messages to the corresponding clients.
+				sprintf(buffer, "%s: %s \n", name, message);
+				send(server, buffer, strlen(buffer), 0);
+			}
+		}
+
+		bzero(message, LENGTH);
+		bzero(buffer, LENGTH + 32);
+	}
+	exitProgram(2);
 }
 
-extern const void sendMessage(int socket) {
-    char *message = (char*)memoryAllocation(100);
-    for(;;) {
-        printWithFormat();
-        while (fgets(message, 100, stdin) != NULL) {
-            stringFormat(message, 100);
-            if (strlen(message) == 0)
-                printWithFormat();
-            else
-                break;
-        }
-        send(socket, message, 100, 0);
-        if (strcmp(message, "exit") == 0)
-            break;
-    }
-    exitProgramClient(2);
+extern const void getMessage() {
+    char message[LENGTH] = {};
+	for(;;) {
+		int receive = recv(server, message, LENGTH, 0);
+		if (receive > 0) {
+			printf("%s", message);
+			printWithFormat();
+		}
+		else if (receive == 0) break;
+
+		memset(message, 0, sizeof(message));
+	}
 }
 
-extern const void builderClient(char *destination, char* flag, int port) {
+extern const void builderClient(char *destination, int port) {
+    signal(SIGINT, exitProgram);
 
-    // We create the general signal for the use of the exit function.
-    signal(SIGINT, exitProgramClient);
+	printf("Enter name: ");
+	fgets(name, 51, stdin);
+	stringFormat(name, strlen(name));
 
-    // Memory allocation for username
-    char* name = (char*)memoryAllocation(50);
-    memset(name, '\0', sizeof*name);
+	if (strlen(name) > 50 || strlen(name) < 2)
+        error("Error the name does not meet the required parameters.");
 
-    // Naming
-    printf("Enter name: ");
-    if (fgets(name, 100, stdin) != NULL)
-        stringFormat(name, 100);
+	struct sockaddr_in serverAddr;
 
-    // Create socket
-    int client = socket(AF_INET , SOCK_STREAM , 0);
-    if (client == -1)
-        error("Fail to create a socket.");
+	// Socket settings
+	server = socket(AF_INET, SOCK_STREAM, 0);
+	serverAddr.sin_family = AF_INET;
+	serverAddr.sin_addr.s_addr = inet_addr(destination);
+	serverAddr.sin_port = htons(port);
 
-    // Socket information
-    struct sockaddr_in serverInfo, clientInfo;
-    int serverLength = sizeof(serverInfo), clientLength = sizeof(clientInfo);
-    memset(&serverInfo, 0, serverLength);
-    memset(&clientInfo, 0, clientLength);
-    serverInfo.sin_family = AF_INET;
-    serverInfo.sin_addr.s_addr = inet_addr(destination);
-    serverInfo.sin_port = htons(port);
+	// Connect to Server
+	int err;
+	if ((err = connect(server, (struct sockaddr *)&serverAddr, sizeof(serverAddr))) == -1)
+        error("Failed to connect socket.");
 
-    // Connect to Server
-    int err = connect(client, (struct sockaddr *)&serverInfo, serverLength);
-    if (err == -1)
-        error("Connection to Server error!\n");
-    
-    // Names
-    getsockname(client, (struct sockaddr*) &clientInfo, (socklen_t*) &clientLength);
-    getpeername(client, (struct sockaddr*) &serverInfo, (socklen_t*) &serverLength);
-    printf("Connect to Server: %s:%d\n", inet_ntoa(serverInfo.sin_addr), ntohs(serverInfo.sin_port));
-    printf("You are: %s:%d\n", inet_ntoa(clientInfo.sin_addr), ntohs(clientInfo.sin_port));
+	// Send name
+	send(server, name, 50, 0);
 
-    send(client, name, 100, 0);
+	printf("* CHATROOM BY DERIAN *\n");
 
-    pthread_t sendMsg;
-    if (pthread_create(&sendMsg, NULL, (void *) sendMessage, NULL) != 0)
+	nameFile = (char*)memoryAllocation(50);
+	strcpy(nameFile, "Conversation-");
+	strcat(nameFile, name);
+
+	pthread_t sendMsg;
+	if (pthread_create(&sendMsg, NULL, (void *)sendMessage, NULL) != 0)
         error("Error creating thread to send messages.");
 
-    pthread_t getMsg;
-    if (pthread_create(&getMsg, NULL, (void *) getMessage, NULL) != 0)
+	pthread_t getMsg;
+	if (pthread_create(&getMsg, NULL, (void *)getMessage, NULL) != 0)
         error("Error creating thread to get messages.");
 
-    for(;;) {
-        if(flagExit) {
-            printf("\nGoodBye\n");
-            break;
-        }
-    }
+	for(;;) {
+		if (flag) {
+			printf("\nBye\n");
+			break;
+		}
+	}
 
-    close(client);
+	close(server);
+	free(nameFile);
+
 }

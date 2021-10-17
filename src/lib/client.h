@@ -4,7 +4,7 @@
  * @param int socket used
  * @return void
 */
-extern const void sendMessage(int);
+extern const void sendMessage();
 
 /**
  * We will get the messages sent.
@@ -12,7 +12,7 @@ extern const void sendMessage(int);
  * @param int socket used
  * @return void
 */
-extern const void getMessage(int);
+extern const void getMessage();
 
 /**
  * Terminate the execution of the application according to the flag.
@@ -20,4 +20,4 @@ extern const void getMessage(int);
  * @param int signal Signal sent.
  * @return void
 */
-extern void exitProgramClient(int);
+extern const void exitProgram(int);

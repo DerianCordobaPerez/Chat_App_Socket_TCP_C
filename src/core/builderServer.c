@@ -1,133 +1,165 @@
 #include "../lib/builder.h"
 #include "../lib/server.h"
+#define MAX 100
+#define BUFFER 1024
 
-ClientNode *root, *current;
+static _Atomic unsigned int quantity = 0;
+static int id = 1;
 
-extern const void exitProgramServer(int signal) {
-    ClientNode *node;
-    while (root != NULL) {
-        printf("\nClosing socket: %i\n", root->socket);
-        
-        // Close all socket include server
-        close(root->socket);
-        node = root;
-        root = root->next;
-        free(node);
-    }
-    error("\"GoodBye\"");
-}
+Client *clients[MAX];
 
-extern const void sendMessageAllClients(ClientNode* client, char* buffer) {
-    ClientNode *node = root->next;
-    while (node != NULL) {
-        // All clients except itself.
-        if (client->socket != node->socket) {
-            printf("Send to socket %i: \"%s\" \n", node->socket, buffer);
-            send(node->socket, buffer, 250, 0);
+pthread_mutex_t clientsMutex = PTHREAD_MUTEX_INITIALIZER;
+
+extern const void addClient(Client *client) {
+    pthread_mutex_lock(&clientsMutex);
+
+    for (int i = 0; i < MAX; ++i) {
+        if (!clients[i]) {
+            clients[i] = client;
+            break;
         }
-        node = node->next;
     }
 
+    pthread_mutex_unlock(&clientsMutex);
 }
 
-extern const void handlerClient(void *client) {
-    int flag = 0;
-    char *name = (char*)memoryAllocation(50);
-    char *getBuffer = (char*)memoryAllocation(100);
-    char *sendBuffer = (char*)memoryAllocation(200);
-    ClientNode *node = (ClientNode *)client;
+extern const void deleteClient(int id) {
+    pthread_mutex_lock(&clientsMutex);
 
-    // Naming
-    if (recv(node->socket, name, 50, 0) <= 0 || strlen(name) < 2 || strlen(name) >= 50) {
-        printf("%s didn't input name.\n", node->ip);
-        flag = 1;
-    } else {
-        strncpy(node->name, name, 50);
-        printf("%s(%s)(%d) join the chatroom.\n", node->name, node->ip, node->socket);
-        sprintf(sendBuffer, "%s(%s) join the chatroom.", node->name, node->ip);
-        sendMessageAllClients(node, sendBuffer);
+    for (int i = 0; i < MAX; ++i) {
+        if (clients[i]) {
+            if (clients[i]->id == id) {
+                clients[i] = NULL;
+                break;
+            }
+        }
     }
 
-    // Conversation
+    pthread_mutex_unlock(&clientsMutex);
+}
+
+extern const void sendMessageAllClients(int id, char *message) {
+    pthread_mutex_lock(&clientsMutex);
+
+    for (int i = 0; i < MAX; ++i) {
+        if (clients[i]) {
+            if (clients[i]->id != id) {
+                if (write(clients[i]->sockfd, message, strlen(message)) < 0)
+                    error("Error sending message.");
+            }
+        }
+    }
+
+    pthread_mutex_unlock(&clientsMutex);
+}
+
+extern void *handlerClient(void *clientArg) {
+    char output[BUFFER], name[50];
+    int flag = 0;
+
+    quantity++;
+    Client *client = (Client *)clientArg;
+
+    // Name
+    if (recv(client->sockfd, name, 32, 0) <= 0 || strlen(name) < 2 || strlen(name) >= 32 - 1) {
+        printf("Didn't enter the name.\n");
+        flag = 1;
+    }
+    else {
+        strcpy(client->name, name);
+        sprintf(output, "%s has joined\n", client->name);
+        printf("%s", output);
+        sendMessageAllClients(client->id, output);
+    }
+
+    bzero(output, BUFFER);
+
     for(;;) {
         if (flag) break;
 
-        int receive = recv(node->socket, getBuffer, 100, 0);
-        
+        int receive = recv(client->sockfd, output, BUFFER, 0);
         if (receive > 0) {
-            if (strlen(getBuffer) == 0) continue;
-
-            sprintf(sendBuffer, "%s：%s from %s", node->name, getBuffer, node->ip);
-        } else if (receive == 0 || strcmp(getBuffer, "exit") == 0) {
-            printf("%s(%s)(%d) leave the chatroom.\n", node->name, node->ip, node->socket);
-            sprintf(sendBuffer, "%s(%s) leave the chatroom.", node->name, node->ip);
-            flag = 1;
-        } else {
-            printf("Fatal Error: -1\n");
+            if (strlen(output) > 0) {
+                sendMessageAllClients(client->id, output);
+                stringFormat(output, strlen(output));
+                printf("%s: %s\n", client->name, output);
+            }
+        }
+        else if (receive == 0 || strcmp(output, "exit") == 0) {
+            sprintf(output, "%s has left\n", client->name);
+            printf("%s", output);
+            sendMessageAllClients(client->id, output);
             flag = 1;
         }
-        sendMessageAllClients(node, sendBuffer);
+        else {
+            printf("FATAL ERROR\n");
+            flag = 1;
+        }
+
+        bzero(output, BUFFER);
     }
 
-    // Remove Node
-    close(node->socket);
-    if (node == current) { // remove an edge node
-        current = node->previuos;
-        current->next = NULL;
-    } else { // remove a middle node
-        node->previuos->next = node->next;
-        node->next->previuos = node->previuos;
-    }
-    free(node);
+    // Delete client from queue and yield thread
+    close(client->sockfd);
+    deleteClient(client->id);
+    free(client);
+    quantity--;
+    pthread_detach(pthread_self());
 
+    return NULL;
 }
 
-extern const void builderServer(char* flag, int port) {
+extern const void builderServer(int port, int count)
+{
+    int option = 1, server = 0, connection = 0;
+    struct sockaddr_in serverAddr, clientAddr;
+    pthread_t threadID;
 
-    // We create the general signal for the use of the exit function.
-    signal(SIGINT, exitProgramServer);
+    // Socket settings
+    server = socket(AF_INET, SOCK_STREAM, 0);
+    serverAddr.sin_family = AF_INET;
+    serverAddr.sin_addr.s_addr = inet_addr("192.168.0.10");
+    serverAddr.sin_port = htons(port);
 
-    // Create socket
-    int server = socket(AF_INET , SOCK_STREAM , 0), client = 0;
-    if (server == -1)
-        error("Fail to create a socket.");
+    // Ignore pipe signals
+    signal(SIGPIPE, SIG_IGN);
 
-   // Socket information
-    struct sockaddr_in serverInfo, clientInfo;
-    int serverLength = sizeof(serverInfo), clientLength = sizeof(clientInfo);
-    memset(&serverInfo, 0, serverLength);
-    memset(&clientInfo, 0, clientLength);
-    serverInfo.sin_family = AF_INET;
-    serverInfo.sin_addr.s_addr = htonl(0xC0A80006);
-    serverInfo.sin_port = htons(port);
+    if (setsockopt(server, SOL_SOCKET, (SO_REUSEPORT | SO_REUSEADDR), (char *)&option, sizeof(option)) < 0)
+        error("Failed to set socket.");
 
-    // Bind and Listen
-    bind(server, (struct sockaddr *)&serverInfo, serverLength);
-    listen(server, 5);
+    // Bind
+    if (bind(server, (struct sockaddr *)&serverAddr, sizeof(serverAddr)) < 0)
+        error("Failed to bind socket.");
 
-    // Print Server IP
-    getsockname(server, (struct sockaddr*) &serverInfo, (socklen_t*) &serverLength);
-    printf("Start Server on: %s:%d\n", inet_ntoa(serverInfo.sin_addr), htons(serverInfo.sin_port));
+    // Listen
+    if (listen(server, 10) < 0)
+        error("Failed to listen socket.");
 
-    // Initial linked list for clients
-    root = newClient(server, inet_ntoa(serverInfo.sin_addr));
-    current = root;
+    printf("* CHATROOM BY DERIAN *\n");
 
     for(;;) {
-        client = accept(server, (struct sockaddr*) &clientInfo, (socklen_t*) &clientLength);
+        socklen_t clientLength = sizeof(clientAddr);
+        connection = accept(server, (struct sockaddr *)&clientAddr, &clientLength);
 
-        // Print Client IP
-        getpeername(client, (struct sockaddr*) &clientInfo, (socklen_t*) &clientLength);
-        printf("Client %s:%d come in.\n", inet_ntoa(clientInfo.sin_addr), ntohs(clientInfo.sin_port));
+        // Check if max clients is reached
+        if ((quantity + 1) == MAX) {
+            printf("Max clients reached.");
+            close(connection);
+            continue;
+        }
 
-        // Append linked list for clients
-        ClientNode *node = newClient(client, inet_ntoa(clientInfo.sin_addr));
-        node->previuos = current;
-        current->next = node;
-        current = node;
+        // Client settings
+        Client *client = (Client *)malloc(sizeof(Client));
+        client->address = clientAddr;
+        client->sockfd = connection;
+        client->id = id++;
 
-        pthread_t id;
-        if (pthread_create(&id, NULL, (void *)handlerClient, (void *)node) != 0)
-            error("Failed to create thread to get clients.");
+        // Add client to the queue and fork thread
+        addClient(client);
+        if(pthread_create(&threadID, NULL, &handlerClient, (void *)client) != 0)
+            error("Error creating thread to handle client.");
+
+        // Reduce CPU usage
+        sleep(1);
     }
 }

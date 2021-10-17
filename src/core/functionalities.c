@@ -6,27 +6,17 @@ extern const void error(char *message) {
 }
 
 extern const void validateParams(int argc) {
-    if(argc < 3 && argc > 4)
+    if(argc < 3 && argc > 5)
         error("The number of parameters passed does not match the required ones\nExpected format for server ./chat <flag> <port>\nExpected format for client ./chat <flag> <port> <destination>");
 }
 
-extern const void *memoryAllocation(int quantity) {
+extern void *memoryAllocation(int quantity) {
     void *pointer;
 
     if((pointer = (void*)malloc(quantity * sizeof(void))) == NULL)
         error("Failed to allocate memory inside the pointer");
 
     return pointer;
-}
-
-extern const char* getIp(char *adapter) {
-    int server = socket(AF_INET, SOCK_DGRAM, 0);
-    struct ifreq ifr;
-    ifr.ifr_addr.sa_family = AF_INET;
-    strncpy(ifr.ifr_name , adapter, IFNAMSIZ - 1);
-    ioctl(server, SIOCGIFADDR, &ifr);
-    close(server);
-    return inet_ntoa(((struct sockaddr_in *)&ifr.ifr_addr)->sin_addr);
 }
 
 extern const void printWithFormat() {
@@ -43,16 +33,13 @@ extern const void stringFormat(char *message, int length) {
     }
 }
 
-extern ClientNode *newClient(int socket, char* ip) {
-    ClientNode *client = (ClientNode*)malloc(sizeof(ClientNode));
-    client->socket = socket;
-    client->previuos = client->next = NULL;
+extern char *substring(const char *source, int start, int length) {
+    char *destination = (char*)memoryAllocation(50);
+    strncpy(destination, (source + start), length);
+    return destination;
+}
+
+extern const void executeCommand(char *command) {
     
-    client->ip = (char*)memoryAllocation(16);
-    strncpy(client->ip, ip, 16);
-
-    client->name = (char*)memoryAllocation(5);
-    strncpy(client->name, "DEFAULT", 8);
-
-    return client;
+    
 }

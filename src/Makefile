@@ -1,16 +1,10 @@
 CC=gcc
 CFLAGS=-O3 -Wall
-LIBS=-pthread
-SRC=/
+LIBS=-fsanitize=address -pthread
 
-all: main.out
-
-main.out: main.o
-	$(CC) $(CFLAGS) $(LIBS) -o main.out main.o
-
-main.o: $(SRC)main.c
-	$(CC) $(CFLAGS) -c $(SRC)main.c
+main: main.c
+	$(CC) -o chat main.c $(CFLAGS) $(LIBS)
 
 .PHONY: clean
 clean:
-	rm -f *.o *.out
+	rm -f chat
