@@ -2,7 +2,7 @@
 typedef struct {
     struct sockaddr_in address;
 	char name[50];
-	int sockfd, id;
+	int socket, id;
 } Client;
 
 /**

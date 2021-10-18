@@ -10,6 +10,40 @@ Client *clients[MAX];
 
 pthread_mutex_t clientsMutex = PTHREAD_MUTEX_INITIALIZER;
 
+const void getInformationClients(int id) {
+    pthread_mutex_lock(&clientsMutex);
+
+    int _Atomic position = -1;
+    char *message = (char*)memoryAllocation(200);
+    bzero(message, 200);
+
+    for(int i = 0; i < MAX; ++i) {
+        if(clients[i]) {
+            if(clients[i]->id == id) {
+                position = i;
+                break;
+            }
+        }
+    }
+
+    if(position != -1) {
+        for(int i = 0; i < MAX; ++i) {
+            if(clients[i]) {
+                if(clients[position]->id != clients[i]->id) {
+                    sprintf(message, "Socket: %i => (%s) - (%s)", clients[i]->socket, clients[i]->name, inet_ntoa(clients[i]->address.sin_addr));
+                    strcat(message, "\n");
+                    if (write(clients[position]->socket, message, strlen(message)) < 0)
+                        error("Error sending message.");
+                }
+            }
+        }
+    }
+
+    free(message);
+
+    pthread_mutex_unlock(&clientsMutex);
+}
+
 extern const void addClient(Client *client) {
     pthread_mutex_lock(&clientsMutex);
 
@@ -44,7 +78,7 @@ extern const void sendMessageAllClients(int id, char *message) {
     for (int i = 0; i < MAX; ++i) {
         if (clients[i]) {
             if (clients[i]->id != id) {
-                if (write(clients[i]->sockfd, message, strlen(message)) < 0)
+                if (write(clients[i]->socket, message, strlen(message)) < 0)
                     error("Error sending message.");
             }
         }
@@ -55,52 +89,65 @@ extern const void sendMessageAllClients(int id, char *message) {
 
 extern void *handlerClient(void *clientArg) {
     char output[BUFFER], name[50];
-    int flag = 0;
+    bool flag = false;
 
     quantity++;
     Client *client = (Client *)clientArg;
 
     // Name
-    if (recv(client->sockfd, name, 32, 0) <= 0 || strlen(name) < 2 || strlen(name) >= 32 - 1) {
-        printf("Didn't enter the name.\n");
-        flag = 1;
+    for(;;) {
+        if (recv(client->socket, name, 50, 0) <= 0 || strlen(name) < 2 || strlen(name) >= 50 - 1 || strcmp(name, "NONE") == 0) {
+            flag = true;
+            sleep(1);
+            continue;
+        }
+        break;
     }
-    else {
-        strcpy(client->name, name);
-        sprintf(output, "%s has joined\n", client->name);
-        printf("%s", output);
-        sendMessageAllClients(client->id, output);
-    }
+
+    flag = false;
+    strcpy(client->name, name);
+    sprintf(output, "%s has joined\n", client->name);
+    printf("%s", output);
+    sendMessageAllClients(client->id, output);
 
     bzero(output, BUFFER);
 
     for(;;) {
         if (flag) break;
 
-        int receive = recv(client->sockfd, output, BUFFER, 0);
+        int receive = recv(client->socket, output, BUFFER, 0);
         if (receive > 0) {
             if (strlen(output) > 0) {
-                sendMessageAllClients(client->id, output);
+
                 stringFormat(output, strlen(output));
-                printf("%s: %s\n", client->name, output);
+
+                if(strcmp(output, "-info") == 0) {      
+                    getInformationClients(client->id);
+                    continue;
+                }
+
+                if(*output != '\\') {
+                    sendMessageAllClients(client->id, output);
+                    printf("(%s)-%s\n", inet_ntoa(client->address.sin_addr), output);
+                }
             }
         }
-        else if (receive == 0 || strcmp(output, "exit") == 0) {
+        else if (strcmp(output, "exit") == 0 || receive == 0) {
             sprintf(output, "%s has left\n", client->name);
             printf("%s", output);
             sendMessageAllClients(client->id, output);
-            flag = 1;
+            flag = true;
         }
         else {
             printf("FATAL ERROR\n");
-            flag = 1;
+            flag = true;
         }
 
         bzero(output, BUFFER);
     }
 
     // Delete client from queue and yield thread
-    close(client->sockfd);
+    close(client->socket);
     deleteClient(client->id);
     free(client);
     quantity--;
@@ -151,7 +198,7 @@ extern const void builderServer(int port, int count)
         // Client settings
         Client *client = (Client *)malloc(sizeof(Client));
         client->address = clientAddr;
-        client->sockfd = connection;
+        client->socket = connection;
         client->id = id++;
 
         // Add client to the queue and fork thread

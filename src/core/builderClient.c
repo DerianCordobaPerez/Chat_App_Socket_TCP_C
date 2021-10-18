@@ -14,6 +14,33 @@ void setNameFile() {
 	strcat(nameFile, ".txt");
 }
 
+void setName() {
+	printf("Enter name: ");
+	if(fgets(name, 50, stdin) != NULL) {
+		stringFormat(name, strlen(name));
+		if (strlen(name) > 50 || strlen(name) < 2)
+			error("Error the name does not meet the required parameters.");
+		send(server, name, 50, 0);
+	} else
+		printf("The name cannot be null.");
+}
+
+void sendPrivateMessage(char *message, char *buffer) {
+	bzero(message, LENGTH);
+	bzero(name, 50);
+	
+	printf("Enter private message: ");
+	fgets(message, LENGTH, stdin);
+	stringFormat(message, LENGTH);
+
+	printf("Enter the recipient's name: ");
+	fgets(name, 50, stdin);
+	stringFormat(name, 50);
+
+	sprintf(buffer, "\\message-%s-%s\n", name, message);
+	send(server, buffer, strlen(buffer), 0);
+}
+
 void saveFile(char *message) {
 	if(conversationFile != NULL)
 		fprintf(conversationFile, "%s\n", message);
@@ -32,37 +59,52 @@ extern const void sendMessage() {
 		fgets(message, LENGTH, stdin);
 		stringFormat(message, LENGTH);
 
-		if (strcmp(message, "exit") == 0) break;
-		else {
-			if(*message == '\\') {
-				fflush(stdin);
-				fflush(stdout);
-				printf("\nStarting command: %s\n", message);
-				
-				if(strcmp(message, "\\quit") == 0) {
-					break;
-				} else if(strcmp(message, "\\log") == 0) {
-					if(conversationFile == NULL)
-						conversationFile = fopen(nameFile, "a+");
-					else
-						printf("Saving of the conversation has still started.");
-
-				} else if(strcmp(message, "\\nolog") == 0) {
-					if(conversationFile != NULL) {
-						fclose(conversationFile);
-						printf("\nConversation saved.\n");
-					} else
-						printf("\nSaving of the conversation has not started yet.");
-				}
-			} else {
-				// We save the conversation inside the file
-				saveFile(message);
-
-				// We send the messages to the corresponding clients.
-				sprintf(buffer, "%s\n", message);
-				send(server, buffer, strlen(buffer), 0);
-			}
+		if(strcmp(message, "\\name") == 0) {
+			printf("\nStarting command: %s\n", message);
+			setName();
+			continue;
 		}
+
+		if(strcmp(name, "NONE") != 0) {
+			if (strcmp(message, "exit") == 0) break;
+			else {
+				if(*message == '\\') {
+					fflush(stdin);
+					fflush(stdout);
+					printf("\nStarting command: %s\n", message);
+					
+					if(strcmp(message, "\\quit") == 0) {
+						break;
+					} else if(strcmp(message, "\\log") == 0) {
+						if(conversationFile == NULL)
+							conversationFile = fopen(nameFile, "a+");
+						else
+							printf("Saving of the conversation has still started.");
+
+					} else if(strcmp(message, "\\nolog") == 0) {
+						if(conversationFile != NULL) {
+							fclose(conversationFile);
+							printf("\nConversation saved.\n");
+						} else
+							printf("\nSaving of the conversation has not started yet.");
+					} else if(strcmp(message, "\\info") == 0) {
+						bzero(buffer, LENGTH + 32);
+						sprintf(buffer, "%s\n", "-info");
+						send(server, buffer, strlen(buffer), 0);
+					} else
+						printf("The command entered is missing from the default command list.");
+					
+				} else {
+					// We save the conversation inside the file
+					saveFile(message);
+
+					// We send the messages to the corresponding clients.
+					sprintf(buffer, "Send from client \"%s\": %s\n", name, message);
+					send(server, buffer, strlen(buffer), 0);
+				}
+			}
+		} else
+			printf("\n\"You have to assign a name to be able to send messages.\nrun the command \\name\".\n\n");
 
 		bzero(message, LENGTH);
 		bzero(buffer, LENGTH + 32);
@@ -89,14 +131,6 @@ extern const void getMessage() {
 
 extern const void builderClient(char *destination, int port) {
     signal(SIGINT, exitProgram);
-
-	printf("Enter name: ");
-	fgets(name, 51, stdin);
-	stringFormat(name, strlen(name));
-
-	if (strlen(name) > 50 || strlen(name) < 2)
-        error("Error the name does not meet the required parameters.");
-
 	struct sockaddr_in serverAddr;
 
 	// Socket settings
@@ -105,11 +139,15 @@ extern const void builderClient(char *destination, int port) {
 	serverAddr.sin_addr.s_addr = inet_addr(destination);
 	serverAddr.sin_port = htons(port);
 
+	// Set name in file
 	setNameFile();
 
+	// Default value for name
+	strcpy(name, "NONE");
+
 	// Connect to Server
-	int err;
-	if ((err = connect(server, (struct sockaddr *)&serverAddr, sizeof(serverAddr))) == -1)
+	int status;
+	if ((status = connect(server, (struct sockaddr *)&serverAddr, sizeof(serverAddr))) == -1)
         error("Failed to connect socket.");
 
 	// Send name

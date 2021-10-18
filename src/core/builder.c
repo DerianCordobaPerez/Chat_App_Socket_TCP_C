@@ -3,6 +3,14 @@
 
 extern const void builder(char **args) {
 
+    /**
+     * !args description
+     * !@args[1] char* flag
+     * !args[2] int port
+     * !args[3] char* destination (ip)
+     * !args[4] int limit client 
+    */
+
     // We validate that the flag passed as a parameter is not correct.
     if(strcmp(args[1], "-c") != 0 && strcmp(args[1], "-l") != 0)
         error("The flag passed as a parameter is not correct.");
