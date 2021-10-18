@@ -10,7 +10,34 @@ Client *clients[MAX];
 
 pthread_mutex_t clientsMutex = PTHREAD_MUTEX_INITIALIZER;
 
-const void getInformationClients(int id) {
+const void getInformationClients() {
+    pthread_mutex_lock(&clientsMutex);
+
+    for(int i = 0; i < MAX; ++i) {
+        if(clients[i])
+            printf("Client: %s - Socket: %i\n", clients[i]->name, clients[i]->socket);
+    }
+
+    pthread_mutex_unlock(&clientsMutex);
+}
+
+const void sendPrivateMessageClient(char *name, char *message) {
+    pthread_mutex_lock(&clientsMutex);
+
+    printf("\nPrivate message\n");
+
+    for(int i = 0; i < MAX; ++i) {
+        if(clients[i]) {
+            if(strcmp(name, clients[i]->name) == 0) {
+                if (write(clients[i]->socket, message, strlen(message)) < 0)
+                    error("Error sending message.");
+            }
+        }
+    }
+    pthread_mutex_unlock(&clientsMutex);
+}
+
+const void getConnectionsClients(int id) {
     pthread_mutex_lock(&clientsMutex);
 
     int _Atomic position = -1;
@@ -121,7 +148,21 @@ extern void *handlerClient(void *clientArg) {
 
                 stringFormat(output, strlen(output));
 
+                if(*output == '*') {
+                    char *nameMsg, *message;
+                    nameMsg = strtok(output, ":");
+                    message = strtok(NULL, ":");
+                    nameMsg++;
+                    sendPrivateMessageClient(nameMsg, message);
+                    continue;
+                }
+
                 if(strcmp(output, "-info") == 0) {      
+                    getConnectionsClients(client->id);
+                    continue;
+                }
+
+                if(strcmp(output, "-list") == 0) {      
                     getInformationClients(client->id);
                     continue;
                 }

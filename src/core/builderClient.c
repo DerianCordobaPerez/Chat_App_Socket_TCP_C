@@ -25,22 +25,6 @@ void setName() {
 		printf("The name cannot be null.");
 }
 
-void sendPrivateMessage(char *message, char *buffer) {
-	bzero(message, LENGTH);
-	bzero(name, 50);
-	
-	printf("Enter private message: ");
-	fgets(message, LENGTH, stdin);
-	stringFormat(message, LENGTH);
-
-	printf("Enter the recipient's name: ");
-	fgets(name, 50, stdin);
-	stringFormat(name, 50);
-
-	sprintf(buffer, "\\message-%s-%s\n", name, message);
-	send(server, buffer, strlen(buffer), 0);
-}
-
 void saveFile(char *message) {
 	if(conversationFile != NULL)
 		fprintf(conversationFile, "%s\n", message);
@@ -91,8 +75,28 @@ extern const void sendMessage() {
 						bzero(buffer, LENGTH + 32);
 						sprintf(buffer, "%s\n", "-info");
 						send(server, buffer, strlen(buffer), 0);
+
+					} else if(strcmp(message, "\\list") == 0) {
+						bzero(buffer, LENGTH + 32);
+						sprintf(buffer, "%s\n", "-list");
+						send(server, buffer, strlen(buffer), 0);
+					
+					} else if(strcmp(message, "\\message") == 0) {
+						char nameSmg[50], privateMsg[200];
+						
+						printf("Enter private message: ");
+						bzero(buffer, LENGTH + 32);
+						fgets(privateMsg, 200, stdin);
+						stringFormat(privateMsg, 200);
+
+						printf("Enter the recipient's name: ");
+						fgets(nameSmg, 50, stdin);
+						stringFormat(nameSmg, 50);
+
+						sprintf(buffer, "*%s:%s\n", nameSmg, privateMsg);
+						send(server, buffer, strlen(buffer), 0);
 					} else
-						printf("The command entered is missing from the default command list.");
+						printf("\nThe command entered is missing from the default command list.\n");
 					
 				} else {
 					// We save the conversation inside the file
@@ -117,7 +121,7 @@ extern const void getMessage() {
 	for(;;) {
 		int receive = recv(server, message, LENGTH, 0);
 		if (receive > 0) {
-			printf("%s", message);
+			printf("%s\n\n", message);
 			printWithFormat();
 
 			// We save the conversation inside the file
