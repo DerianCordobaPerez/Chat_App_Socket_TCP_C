@@ -40,6 +40,7 @@ extern const void setName(void) {
 }
 
 extern const void saveFile(char *message) {
+	// Write to the file.
 	if(conversationFile != NULL)
 		fprintf(conversationFile, "%s\n", message);
 }
@@ -48,7 +49,7 @@ extern const void exitProgram(int signal) {
     flag = 1;
 }
 
-extern const executeCommand(char *buffer, char *command) {
+extern const void executeCommand(char *buffer, char *command) {
 	bzero(buffer, LENGTH + 32);
 	sprintf(buffer, "%s\n", command);
 	send(server, buffer, strlen(buffer), 0);
@@ -157,6 +158,8 @@ extern const void sendMessage() {
 		bzero(message, LENGTH);
 		bzero(buffer, LENGTH + 32);
 	}
+
+	// We send it the SIGINT signal equivalent to Ctrl + C.
 	exitProgram(2);
 }
 

@@ -44,11 +44,3 @@ extern const void printWithFormat();
  * @return void
 */
 extern const void stringFormat(char *, int);
-
-/**
- * 
- * 
- * @param char* command
- * @param void
-*/
-extern const void executeCommand(char*);

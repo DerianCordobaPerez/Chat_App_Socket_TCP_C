@@ -3,14 +3,19 @@
 #define MAX 100
 #define BUFFER 1024
 
+// Number of connected clients.
 static _Atomic unsigned int quantity = 0;
+
+// Client ID
 static int id = 1;
 
+// Client array.
 Client *clients[MAX];
 
+// Traffic light by mutex.
 pthread_mutex_t clientsMutex = PTHREAD_MUTEX_INITIALIZER;
 
-const void getInformationClients() {
+extern const void getInformationClients(void) {
     pthread_mutex_lock(&clientsMutex);
 
     for(int i = 0; i < MAX; ++i) {
@@ -21,7 +26,7 @@ const void getInformationClients() {
     pthread_mutex_unlock(&clientsMutex);
 }
 
-const void sendPrivateMessageClient(char *name, char *message) {
+extern const void sendPrivateMessageClient(char *name, char *message) {
     pthread_mutex_lock(&clientsMutex);
 
     printf("\nPrivate message\n");
@@ -37,13 +42,15 @@ const void sendPrivateMessageClient(char *name, char *message) {
     pthread_mutex_unlock(&clientsMutex);
 }
 
-const void getConnectionsClients(int id) {
+extern const void getConnectionsClients(int id) {
     pthread_mutex_lock(&clientsMutex);
 
     int _Atomic position = -1;
     char *message = (char*)memoryAllocation(200);
     bzero(message, 200);
 
+    // We look for if there is a client with the id passed 
+    // as a parameter.
     for(int i = 0; i < MAX; ++i) {
         if(clients[i]) {
             if(clients[i]->id == id) {
@@ -53,9 +60,11 @@ const void getConnectionsClients(int id) {
         }
     }
 
+    // If there is a client.
     if(position != -1) {
         for(int i = 0; i < MAX; ++i) {
             if(clients[i]) {
+                // Send a message to all connections.
                 if(clients[position]->id != clients[i]->id) {
                     sprintf(message, "Socket: %i => (%s) - (%s)", clients[i]->socket, clients[i]->name, inet_ntoa(clients[i]->address.sin_addr));
                     strcat(message, "\n");
@@ -118,20 +127,22 @@ extern void *handlerClient(void *clientArg) {
     char output[BUFFER], name[50];
     bool flag = false;
 
+    // We increase the number of clients.
     quantity++;
+
+    // We get the current client.
     Client *client = (Client *)clientArg;
 
-    // Name
-    for(;;) {
-        if (recv(client->socket, name, 50, 0) <= 0 || strlen(name) < 2 || strlen(name) >= 50 - 1 || strcmp(name, "NONE") == 0) {
-            flag = true;
-            sleep(1);
-            continue;
-        }
-        break;
+    // It will be in infinite cycle as long as the name does not 
+    // come with the correct format.
+    while(recv(client->socket, name, 50, 0) <= 0 || strlen(name) < 2 || strlen(name) >= 50 - 1 || strcmp(name, "NONE") == 0) {
+        flag = true;
+        sleep(1);
     }
 
     flag = false;
+    
+    // We welcome the new client.
     strcpy(client->name, name);
     sprintf(output, "%s has joined\n", client->name);
     printf("%s", output);
@@ -142,38 +153,46 @@ extern void *handlerClient(void *clientArg) {
     for(;;) {
         if (flag) break;
 
+        // We obtain the source address of the message obtained.
         int receive = recv(client->socket, output, BUFFER, 0);
+
+        // If the information received is greater than 0.
         if (receive > 0) {
             if (strlen(output) > 0) {
-
+                // Format the sent message.
                 stringFormat(output, strlen(output));
 
+                // If the message begins with the * character.
+                // send a private message.
                 if(*output == '*') {
-                    char *nameMsg, *message;
-                    nameMsg = strtok(output, ":");
-                    message = strtok(NULL, ":");
+                    // Gets the sent message in part.
+                    char *nameMsg = strtok(output, ":"), *message = strtok(NULL, ":");
+                    // We remove the first character from the name.
                     nameMsg++;
                     sendPrivateMessageClient(nameMsg, message);
                     continue;
                 }
 
+                // We show the information of the clients connected 
+                // from the other end.
                 if(strcmp(output, "-info") == 0) {      
                     getConnectionsClients(client->id);
                     continue;
                 }
 
+                // List all connected users.
                 if(strcmp(output, "-list") == 0) {      
-                    getInformationClients(client->id);
+                    getInformationClients();
                     continue;
                 }
 
-                if(*output != '\\') {
-                    sendMessageAllClients(client->id, output);
-                    printf("(%s)-%s\n", inet_ntoa(client->address.sin_addr), output);
-                }
+                // Show the message if it is not a command.
+                sendMessageAllClients(client->id, output);
+                printf("(%s)-%s\n", inet_ntoa(client->address.sin_addr), output);
             }
-        }
-        else if (strcmp(output, "exit") == 0 || receive == 0) {
+        // If the string is output or the information is less than 0.
+        } else if (strcmp(output, "exit") == 0 || receive == 0) {
+            // We notify that the client has left the chat.
             sprintf(output, "%s has left\n", client->name);
             printf("%s", output);
             sendMessageAllClients(client->id, output);

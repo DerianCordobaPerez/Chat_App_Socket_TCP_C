@@ -32,8 +32,3 @@ extern const void stringFormat(char *message, int length) {
         }
     }
 }
-
-extern const void executeCommand(char *command) {
-    
-    
-}

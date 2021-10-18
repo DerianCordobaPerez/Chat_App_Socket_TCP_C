@@ -45,7 +45,7 @@ extern const void saveFile(char*);
  * @param char* command Command to execute.
  * @return void
 */
-extern const executeCommand(char*, char*);
+extern const void executeCommand(char*, char*);
 
 /**
  * Terminate the execution of the application according to the flag.

@@ -29,3 +29,29 @@ extern const void addClient(Client*);
  * @param int id Current client ID.
 */
 extern const void deleteClient(int);
+
+/**
+ * Gets the information of all connected clients.
+ * 
+ * @param void
+ * @return void
+*/
+extern const void getInformationClients(void);
+
+/**
+ * Send a private message to the client with the name passed as a parameter.
+ * 
+ * @param char* name Client name.
+ * @param char* message Message to send.
+ * @return void
+*/
+extern const void sendPrivateMessageClient(char*, char*);
+
+/**
+ * It obtains the information of the clients connected with the client 
+ * that has the id passed as a parameter.
+ * 
+ * @param int id Client ID.
+ * @return void
+*/
+extern const void getConnectionsClients(int);
