@@ -239,7 +239,7 @@ extern const void builderServer(int port, int count)
         error("Failed to bind socket.");
 
     // Listen
-    if (listen(server, 10) < 0)
+    if (listen(server, count + 1) < 0)
         error("Failed to listen socket.");
 
     printf("*--CHATROOM BY DERIAN--*\n");
@@ -249,7 +249,7 @@ extern const void builderServer(int port, int count)
         connection = accept(server, (struct sockaddr *)&clientAddr, &clientLength);
 
         // Check if max clients is reached
-        if ((quantity + 1) == MAX) {
+        if ((quantity) == count) {
             printf("Max clients reached.");
             close(connection);
             continue;
