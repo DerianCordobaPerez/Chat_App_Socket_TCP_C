@@ -223,7 +223,7 @@ extern const void builderServer(int port, int count)
     if (listen(server, 10) < 0)
         error("Failed to listen socket.");
 
-    printf("* CHATROOM BY DERIAN *\n");
+    printf("*--CHATROOM BY DERIAN--*\n");
 
     for(;;) {
         socklen_t clientLength = sizeof(clientAddr);

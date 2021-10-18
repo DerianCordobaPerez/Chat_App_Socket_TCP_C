@@ -2,30 +2,44 @@
 #include "../lib/client.h"
 #define LENGTH 1024
 
+// Flag accessed from all threads.
 volatile sig_atomic_t flag = 0;
+
+// FILE variable that we use to perform the actions of the conversation 
+// file.
 FILE *conversationFile = NULL;
+
+// socket to which we will connect.
 int server = 0;
+
+// File name and client name
 char *nameFile, name[50];
 
-void setNameFile() {
+extern const void setNameFile(void) {
 	nameFile = (char*)memoryAllocation(50);
+
+	// We prepare the name of the file with the word 
+	// conversation and the name of the client.
 	strcpy(nameFile, "Conversation-");
 	strcat(nameFile, name);
 	strcat(nameFile, ".txt");
 }
 
-void setName() {
+extern const void setName(void) {
 	printf("Enter name: ");
 	if(fgets(name, 50, stdin) != NULL) {
 		stringFormat(name, strlen(name));
+		// We validate the length of the name entered.
 		if (strlen(name) > 50 || strlen(name) < 2)
 			error("Error the name does not meet the required parameters.");
+		
+		// We send the name to the server.
 		send(server, name, 50, 0);
 	} else
 		printf("The name cannot be null.");
 }
 
-void saveFile(char *message) {
+extern const void saveFile(char *message) {
 	if(conversationFile != NULL)
 		fprintf(conversationFile, "%s\n", message);
 }
@@ -34,65 +48,95 @@ extern const void exitProgram(int signal) {
     flag = 1;
 }
 
+extern const executeCommand(char *buffer, char *command) {
+	bzero(buffer, LENGTH + 32);
+	sprintf(buffer, "%s\n", command);
+	send(server, buffer, strlen(buffer), 0);
+}
+
 extern const void sendMessage() {
-    char message[LENGTH] = {};
 	char buffer[LENGTH + 32] = {};
+    char message[LENGTH] = {};
 
 	for(;;) {
+		// Print >
 		printWithFormat();
-		fgets(message, LENGTH, stdin);
-		stringFormat(message, LENGTH);
 
+		// We ask the console for the message to send
+		if(fgets(message, LENGTH, stdin) != NULL)
+			stringFormat(message, LENGTH);
+
+		// We verify that the message sent is the command \name.
 		if(strcmp(message, "\\name") == 0) {
 			printf("\nStarting command: %s\n", message);
 			setName();
 			continue;
 		}
 
+		// In case the customer has not yet been given a name, 
+		// it will not be able to send messages.
 		if(strcmp(name, "NONE") != 0) {
+
+			// If the message sent is exit, we stop the loop.
 			if (strcmp(message, "exit") == 0) break;
+
+			// In case of another message, we will validate the options.
 			else {
+
+				// If the sent message starts with inverted pleca, 
+				// it works as a command.
 				if(*message == '\\') {
+					//We clean the input and output buffers.
 					fflush(stdin);
 					fflush(stdout);
 					printf("\nStarting command: %s\n", message);
 					
+					// If the command is \quit, we end the loop.
 					if(strcmp(message, "\\quit") == 0) {
 						break;
+
+					// If the command is \log, the conversation starts to be saved.
 					} else if(strcmp(message, "\\log") == 0) {
+						// If the file is null we open it.
 						if(conversationFile == NULL)
 							conversationFile = fopen(nameFile, "a+");
 						else
 							printf("Saving of the conversation has still started.");
 
+					// If the command is \nolog, we save the conversation.
 					} else if(strcmp(message, "\\nolog") == 0) {
 						if(conversationFile != NULL) {
 							fclose(conversationFile);
 							printf("\nConversation saved.\n");
 						} else
 							printf("\nSaving of the conversation has not started yet.");
-					} else if(strcmp(message, "\\info") == 0) {
-						bzero(buffer, LENGTH + 32);
-						sprintf(buffer, "%s\n", "-info");
-						send(server, buffer, strlen(buffer), 0);
 
-					} else if(strcmp(message, "\\list") == 0) {
-						bzero(buffer, LENGTH + 32);
-						sprintf(buffer, "%s\n", "-list");
-						send(server, buffer, strlen(buffer), 0);
-					
-					} else if(strcmp(message, "\\message") == 0) {
+					// If the command is \info, we ask for the information of the other extremes.
+					} else if(strcmp(message, "\\info") == 0) {
+						executeCommand(buffer, "-info");
+
+					// If the command is \list, We show all connected clients.
+					} else if(strcmp(message, "\\list") == 0) 
+						executeCommand(buffer, "-list");
+
+					// If the command is \message, We send a private message to the 
+					// given recipient.
+					else if(strcmp(message, "\\message") == 0) {
 						char nameSmg[50], privateMsg[200];
+						bzero(buffer, LENGTH + 32);
 						
 						printf("Enter private message: ");
-						bzero(buffer, LENGTH + 32);
-						fgets(privateMsg, 200, stdin);
-						stringFormat(privateMsg, 200);
 
+						// We get the message to send.
+						if(fgets(privateMsg, 200, stdin) != NULL)
+							stringFormat(privateMsg, 200);
+
+						// We obtain the name of the client to send the message.
 						printf("Enter the recipient's name: ");
-						fgets(nameSmg, 50, stdin);
-						stringFormat(nameSmg, 50);
-
+						if(fgets(nameSmg, 50, stdin) != NULL)
+							stringFormat(nameSmg, 50);
+						
+						// Message we send privately.
 						sprintf(buffer, "*%s:%s\n", nameSmg, privateMsg);
 						send(server, buffer, strlen(buffer), 0);
 					} else
@@ -119,7 +163,12 @@ extern const void sendMessage() {
 extern const void getMessage() {
     char message[LENGTH] = {};
 	for(;;) {
+
+		// We obtain the source address of the message obtained.
 		int receive = recv(server, message, LENGTH, 0);
+
+		// If the information received is greater than 0, 
+		// we print the message.
 		if (receive > 0) {
 			printf("%s\n\n", message);
 			printWithFormat();
@@ -129,12 +178,14 @@ extern const void getMessage() {
 		}
 		else if (receive == 0) break;
 
+		// We set all memory spaces to 0.
 		memset(message, 0, sizeof(message));
 	}
 }
 
 extern const void builderClient(char *destination, int port) {
-    signal(SIGINT, exitProgram);
+    // We give the signal through the output function.
+	signal(SIGINT, exitProgram);
 	struct sockaddr_in serverAddr;
 
 	// Socket settings
@@ -159,14 +210,17 @@ extern const void builderClient(char *destination, int port) {
 
 	printf("*--CHATROOM BY DERIAN--*\n");
 
+	// Create the thread to send messages.
 	pthread_t sendMsg;
 	if (pthread_create(&sendMsg, NULL, (void *)sendMessage, NULL) != 0)
         error("Error creating thread to send messages.");
 
+	// Create the thread to get messages.
 	pthread_t getMsg;
 	if (pthread_create(&getMsg, NULL, (void *)getMessage, NULL) != 0)
         error("Error creating thread to get messages.");
 
+	// It will loop as long as the flag is false.
 	for(;;) {
 		if (flag) {
 			printf("\n\"GoodBye\"\n");
@@ -174,6 +228,7 @@ extern const void builderClient(char *destination, int port) {
 		}
 	}
 
+	// If the file was never closed (saved), it will be closed.
 	if(conversationFile != NULL) 
 		fclose(conversationFile);
 
