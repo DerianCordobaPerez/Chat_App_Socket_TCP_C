@@ -5,10 +5,10 @@ extern const void builder(char **args) {
 
     /**
      * !args description
-     * !@args[1] char* flag
+     * !args[1] char* flag
      * !args[2] int port
      * !args[3] char* destination (ip)
-     * !args[4] int limit client 
+     * !args[4] int limit client
     */
 
     // We validate that the flag passed as a parameter is not correct.

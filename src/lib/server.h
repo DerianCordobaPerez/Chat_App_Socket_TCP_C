@@ -55,3 +55,10 @@ extern const void sendPrivateMessageClient(char*, char*);
  * @return void
 */
 extern const void getConnectionsClients(int);
+
+/**
+ * 
+ * @param char* name Name client
+ * @return void 
+*/
+extern const void existsClient(char*);

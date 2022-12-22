@@ -19,8 +19,8 @@ extern void *memoryAllocation(int quantity) {
     return pointer;
 }
 
-extern const void printWithFormat() {
-    printf("\r%s", "> ");
+extern const void printWithFormat(char *name, int socket) {
+    printf("\r%s@Socket: %i> ", name, socket);
     fflush(stdout);
 }
 
@@ -31,4 +31,13 @@ extern const void stringFormat(char *message, int length) {
             break;
         }
     }
+}
+
+extern char *getCurrentTime() {
+    time_t currentTime;
+    struct tm *timeInfo;
+
+    time(&currentTime);
+    timeInfo = localtime(&currentTime);
+    return asctime(timeInfo);
 }

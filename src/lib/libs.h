@@ -3,6 +3,9 @@
 #include <string.h>
 #include <unistd.h>
 #include <stdbool.h>
+#include <pthread.h>
+#include <time.h>
+#include <ctype.h>
 
 #include <sys/socket.h>
 #include <sys/types.h>
@@ -13,4 +16,3 @@
 #include <net/if.h>
 #include <arpa/inet.h>
 #include <signal.h>
-#include <pthread.h>

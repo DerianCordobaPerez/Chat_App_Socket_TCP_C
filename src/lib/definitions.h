@@ -32,9 +32,11 @@ extern void* memoryAllocation(int);
 /**
  * The console prints the desired format for the client when a message is sent.
  * 
+ * @param char* name Name client
+ * @param int socket Socket client
  * @return void
 */
-extern const void printWithFormat();
+extern const void printWithFormat(char*, int);
 
 /**
  * Sent messages are given a specific format.
@@ -44,3 +46,34 @@ extern const void printWithFormat();
  * @return void
 */
 extern const void stringFormat(char *, int);
+
+/**
+ * Returns the current system time.
+ * 
+ * @return char* Current time.
+*/
+extern char* getCurrentTime();
+
+/**
+ * Delete space in left side.
+ * 
+ * @param char* string 
+ * @return char*
+*/
+extern char* ltrim(char*);
+
+/**
+ * 
+ * 
+ * @param char* string 
+ * @return char*
+*/
+extern char* rtrim(char*);
+
+/**
+ * 
+ * 
+ * @param char* string
+ * @return char*
+*/
+extern char* trim(char*);

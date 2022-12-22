@@ -8,6 +8,7 @@ static _Atomic unsigned int quantity = 0;
 
 // Client ID
 static int id = 1;
+bool exists = false;
 
 // Client array.
 Client *clients[MAX];
@@ -123,6 +124,21 @@ extern const void sendMessageAllClients(int id, char *message) {
     pthread_mutex_unlock(&clientsMutex);
 }
 
+extern const void existsClient(char *name) {
+    pthread_mutex_lock(&clientsMutex);
+
+    for (int i = 0; i < MAX; ++i) {
+        if (clients[i]) {
+            if (strcmp(name, clients[i]->name) == 0) {
+                sendPrivateMessageClient("NONE", "name_in_use");
+                printf("Existe el cliente\n");
+                exists = true;
+            }
+        }
+    }
+    pthread_mutex_unlock(&clientsMutex);
+}
+
 extern void *handlerClient(void *clientArg) {
     char output[BUFFER], name[50];
     bool flag = false;
@@ -135,20 +151,22 @@ extern void *handlerClient(void *clientArg) {
 
     // It will be in infinite cycle as long as the name does not 
     // come with the correct format.
+    flag = true;
     while(recv(client->socket, name, 50, 0) <= 0 || strlen(name) < 2 || strlen(name) >= 50 - 1 || strcmp(name, "NONE") == 0) {
-        flag = true;
         sleep(1);
     }
+        
+    existsClient(name);
 
-    flag = false;
-    
-    // We welcome the new client.
-    strcpy(client->name, name);
-    sprintf(output, "%s has joined\n", client->name);
-    printf("%s", output);
-    sendMessageAllClients(client->id, output);
-
-    bzero(output, BUFFER);
+    if(!exists) {
+        strcpy(client->name, name);
+        // We welcome the new client.
+        sprintf(output, "%s has joined\n", client->name);
+        printf("%s", output);
+        sendMessageAllClients(client->id, output);
+        bzero(output, BUFFER);
+        flag = false;
+    }
 
     for(;;) {
         if (flag) break;
@@ -192,16 +210,14 @@ extern void *handlerClient(void *clientArg) {
             }
         // If the string is output or the information is less than 0.
         } else if (strcmp(output, "exit") == 0 || receive == 0) {
+
             // We notify that the client has left the chat.
             sprintf(output, "%s has left\n", client->name);
             printf("%s", output);
             sendMessageAllClients(client->id, output);
             flag = true;
-        }
-        else {
-            printf("FATAL ERROR\n");
+        } else
             flag = true;
-        }
 
         bzero(output, BUFFER);
     }

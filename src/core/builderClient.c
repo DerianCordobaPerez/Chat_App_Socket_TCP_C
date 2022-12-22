@@ -22,6 +22,8 @@ extern const void setNameFile(void) {
 	// conversation and the name of the client.
 	strcpy(nameFile, "Conversation-");
 	strcat(nameFile, name);
+	strcat(nameFile, "-");
+	strcat(nameFile, getCurrentTime());
 	strcat(nameFile, ".txt");
 }
 
@@ -61,7 +63,7 @@ extern const void sendMessage() {
 
 	for(;;) {
 		// Print >
-		printWithFormat();
+		printWithFormat(name, server);
 
 		// We ask the console for the message to send
 		if(fgets(message, LENGTH, stdin) != NULL)
@@ -99,9 +101,11 @@ extern const void sendMessage() {
 					// If the command is \log, the conversation starts to be saved.
 					} else if(strcmp(message, "\\log") == 0) {
 						// If the file is null we open it.
-						if(conversationFile == NULL)
+						if(conversationFile == NULL) {
+							// Set name in file
+							setNameFile();
 							conversationFile = fopen(nameFile, "a+");
-						else
+						} else
 							printf("Saving of the conversation has still started.");
 
 					// If the command is \nolog, we save the conversation.
@@ -173,8 +177,12 @@ extern const void getMessage() {
 		// If the information received is greater than 0, 
 		// we print the message.
 		if (receive > 0) {
+
+			if(strcmp(message, "name_in_use") == 0)
+				error("The chosen name has already been selected.");
+
 			printf("%s\n\n", message);
-			printWithFormat();
+			printWithFormat(name, server);
 
 			// We save the conversation inside the file
 			saveFile(message);
@@ -196,9 +204,6 @@ extern const void builderClient(char *destination, int port) {
 	serverAddr.sin_family = AF_INET;
 	serverAddr.sin_addr.s_addr = inet_addr(destination);
 	serverAddr.sin_port = htons(port);
-
-	// Set name in file
-	setNameFile();
 
 	// Default value for name
 	strcpy(name, "NONE");
